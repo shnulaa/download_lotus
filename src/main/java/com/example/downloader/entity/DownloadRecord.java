@@ -24,8 +24,7 @@ public class DownloadRecord {
     @Column(columnDefinition = "boolean default true")
     private Boolean supportRange = true;
 
-    @Lob
-    @Column(columnDefinition = "TEXT")
+    @Column(length = 10000)
     private String chunksJson; // 存储chunk信息的JSON字符串
 
     // 用于UI展示的简单字段

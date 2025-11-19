@@ -403,7 +403,9 @@ public class DownloadTaskContext {
                 chunkData.put("finished", chunk.isFinished());
                 chunkList.add(chunkData);
             }
-            record.setChunksJson(JSON.toJSONString(chunkList));
+            String jsonStr = JSON.toJSONString(chunkList);
+            record.setChunksJson(jsonStr);
+            log.info("保存 {} 个chunks，JSON长度: {}", chunkList.size(), jsonStr.length());
         }
     }
 
