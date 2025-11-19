@@ -91,8 +91,12 @@
                     </div>
                 </div>
                 <!-- 流式下载显示进度条 -->
-                <div v-else>
-                     <el-progress :percentage="50" :indeterminate="true" :format="() => '流式传输中...'" striped></el-progress>
+                <div v-else-if="task.status === 'DOWNLOADING' && task.totalSize <= 0">
+                     <el-progress :percentage="100" :indeterminate="true" :format="() => '流式传输中...'" striped></el-progress>
+                </div>
+                <!-- 流式下载完成 -->
+                <div v-else-if="task.status === 'FINISHED' && task.totalSize <= 0">
+                     <el-progress :percentage="100" status="success" :format="() => '已完成'" striped></el-progress>
                 </div>
 
                 <!-- 操作栏 -->
@@ -186,10 +190,26 @@
 
                 const createTask = async () => {
                     if(!form.value.url) return;
-                    await axios.post('http://localhost:8080/api/download/start', form.value);
+                    const response = await axios.post('/api/download/start', form.value);
+                    const taskId = response.data;
+
+                    // 立即创建临时任务对象并添加到列表前端，实现实时显示
+                    const tempTask = {
+                        id: taskId,
+                        fileName: null,
+                        url: form.value.url,
+                        status: 'IDLE',
+                        totalSize: -1,
+                        downloaded: 0,
+                        speed: 0,
+                        createdTime: new Date().toISOString(),
+                        supportRange: false
+                    };
+                    tasks.value.unshift(tempTask);
+                    totalTasks.value++;
+
                     showCreateDialog.value = false;
-                    loadTasks(1);
-                    ElMessage.success('任务已加入队列');
+                    ElMessage.success('任务已创建');
                 };
 
                 const downloadToLocal = (task) => {
