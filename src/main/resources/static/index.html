@@ -4,13 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <title>Pro Downloader V1.0.1</title>
-    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://unpkg.com/element-plus"></script>
-    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="css/element-plus.css">
+    <script src="js/vue.global.js"></script>
+    <script src="js/element-plus.js"></script>
+    <script src="js/icons-vue.js"></script>
+    <script src="js/sockjs.min.js"></script>
+    <script src="js/stomp.min.js"></script>
+    <script src="js/axios.min.js"></script>
     <style>
         body {
             background-color: #f5f7fa;
@@ -121,8 +121,11 @@
             <h2>🚀 Pro Downloader <small style="font-size: 14px; color: #999;">V1.0.2</small></h2>
             <div style="display: flex; align-items: center; gap: 10px;">
                 <el-tag size="small"
-                    :type="wsStatus === 'connected' ? 'success' : wsStatus === 'connecting' ? 'warning' : 'danger'">
-                    {{ wsStatus === 'connected' ? '🟢 已连接' : wsStatus === 'connecting' ? '🟡 连接中' : '🔴 断开' }}
+                    :type="wsStatus === 'connected' ? 'success' : wsStatus === 'connecting' ? 'warning' : 'danger'"
+                    :title="wsError">
+                    {{ wsStatus === 'connected' ? '🟢 已连接 (' + msgCount + ')' : wsStatus === 'connecting' ? '🟡 连接中' :
+                    '🔴 断开 (' + wsError
+                    + ')' }}
                 </el-tag>
                 <el-button type="primary" @click="showCreateDialog = true" :icon="Plus">新建任务</el-button>
             </div>
@@ -219,6 +222,8 @@
                 const currentPage = ref(1);
                 const showCreateDialog = ref(false);
                 const wsStatus = ref('disconnected'); // WebSocket连接状态: connecting, connected, disconnected
+                const wsError = ref('');
+                const msgCount = ref(0);
                 const wsClient = ref(null);
                 const reconnectTimer = ref(null);
                 const form = ref({ url: 'https://officecdn-microsoft-com.akamaized.net/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_Office_16.55.21111400_BusinessPro_Installer.pkg', path: './Temp', threads: 8 }); // 默认路径需根据系统调整
@@ -254,6 +259,8 @@
 
                             // 订阅进度更新
                             stomp.subscribe('/topic/progress', (msg) => {
+                                // console.log('WS Recv:', msg.body); // Debug log
+                                msgCount.value++;
                                 const updates = JSON.parse(msg.body);
                                 updates.forEach(u => {
                                     const idx = tasks.value.findIndex(t => t.id === u.id);
@@ -269,6 +276,7 @@
                         },
                         (error) => {
                             wsStatus.value = 'disconnected';
+                            wsError.value = 'Connect Error';
                             console.error('WebSocket连接错误:', error);
                             // 3秒后尝试重连
                             reconnectTimer.value = setTimeout(() => {
@@ -339,9 +347,12 @@
                     const cells = new Array(totalBlocks).fill(null);
                     if (!task.chunks) return cells;
 
+                    // 确保 chunks 是数组
+                    const chunks = Array.isArray(task.chunks) ? task.chunks : Object.values(task.chunks);
+
                     const bytesPerBlock = task.totalSize / totalBlocks;
 
-                    task.chunks.forEach(chunk => {
+                    chunks.forEach(chunk => {
                         // 计算该chunk覆盖的 block 范围
                         const startIdx = Math.floor(chunk.start / bytesPerBlock);
                         const endIdx = Math.floor(chunk.end / bytesPerBlock);
@@ -402,7 +413,7 @@
                 });
 
                 return {
-                    tasks, totalTasks, showCreateDialog, form,
+                    tasks, totalTasks, showCreateDialog, form, wsStatus, wsError, msgCount,
                     createTask, handlePageChange: (p) => { currentPage.value = p; loadTasks(p); },
                     downloadToLocal, confirmDelete, control: async (id, act) => axios.post(`http://localhost:8080/api/download/${id}/${act}`),
                     getGridMap, getCellStyle, formatSize, formatPercent, getStatusType

@@ -1,5 +1,6 @@
 package com.example.downloader.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -14,6 +15,7 @@ public class ChunkInfo {
     private String id; // 分片唯一ID
     private long start; // 起始字节位置
     private long end; // 结束字节位置
+    @JsonIgnore
     private AtomicLong current; // 当前已下载位置(绝对位置)
     private volatile long speed;// 当前速度 (bytes/s)
     private volatile int errorCount; // 错误次数

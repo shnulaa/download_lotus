@@ -30,8 +30,10 @@ import java.util.stream.Collectors;
 @CrossOrigin
 public class DownloadController {
 
-    @Autowired private DownloadRepository repository;
-    @Autowired private SimpMessagingTemplate messagingTemplate;
+    @Autowired
+    private DownloadRepository repository;
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     // 内存中活跃的任务 Context
     private final Map<String, DownloadTaskContext> activeContexts = new ConcurrentHashMap<>();
@@ -65,7 +67,7 @@ public class DownloadController {
     // 分页获取列表
     @GetMapping("/list")
     public Page<Map<String, Object>> list(@RequestParam(defaultValue = "0") int page,
-                                          @RequestParam(defaultValue = "5") int size) {
+            @RequestParam(defaultValue = "5") int size) {
         Page<DownloadRecord> pageData = repository.findAllByOrderByCreatedTimeDesc(PageRequest.of(page, size));
         return pageData.map(this::enrichRecordData);
     }
@@ -74,15 +76,18 @@ public class DownloadController {
     @GetMapping("/file/{id}")
     public ResponseEntity<Resource> downloadToLocal(@PathVariable String id) throws UnsupportedEncodingException {
         DownloadRecord record = repository.findById(id).orElse(null);
-        if (record == null || !"FINISHED".equals(record.getStatus())) return ResponseEntity.notFound().build();
+        if (record == null || !"FINISHED".equals(record.getStatus()))
+            return ResponseEntity.notFound().build();
 
         File file = new File(record.getSavePath(), record.getFileName());
-        if (!file.exists()) return ResponseEntity.notFound().build();
+        if (!file.exists())
+            return ResponseEntity.notFound().build();
 
         Resource resource = new FileSystemResource(file);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + URLEncoder.encode(file.getName(), "UTF-8") + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + URLEncoder.encode(file.getName(), "UTF-8") + "\"")
                 .body(resource);
     }
 
@@ -110,21 +115,28 @@ public class DownloadController {
         DownloadTaskContext ctx = activeContexts.get(id);
         // 如果内存没有（例如重启后），需重新构建Context (简化处理: 只有新建或一直运行的任务在内存)
         // 完整版需从DB重建Context
-        if(ctx == null) return;
+        if (ctx == null)
+            return;
 
-        if("pause".equals(action)) ctx.pause();
+        if ("pause".equals(action))
+            ctx.pause();
         // resume 逻辑需重新触发 start
     }
 
     // 定时推送数据
     @Scheduled(fixedRate = 800)
+    @Scheduled(fixedRate = 800)
     public void pushProgress() {
-        List<Map<String, Object>> updates = new ArrayList<>();
-        for (DownloadTaskContext ctx : activeContexts.values()) {
-            updates.add(enrichRecordData(ctx.getRecord()));
-        }
-        if(!updates.isEmpty()) {
-            messagingTemplate.convertAndSend("/topic/progress", updates);
+        try {
+            List<Map<String, Object>> updates = new ArrayList<>();
+            for (DownloadTaskContext ctx : activeContexts.values()) {
+                updates.add(enrichRecordData(ctx.getRecord()));
+            }
+            if (!updates.isEmpty()) {
+                messagingTemplate.convertAndSend("/topic/progress", updates);
+            }
+        } catch (Exception e) {
+            e.printStackTrace(); // 打印错误堆栈，防止定时任务终止
         }
     }
 
@@ -144,7 +156,7 @@ public class DownloadController {
             map.put("supportRange", ctx.isSupportRange());
 
             long downloaded = 0;
-            for(ChunkInfo c : ctx.getChunkMap().values()) {
+            for (ChunkInfo c : ctx.getChunkMap().values()) {
                 downloaded += (c.getCurrent().get() - c.getStart());
             }
             map.put("downloaded", downloaded);
