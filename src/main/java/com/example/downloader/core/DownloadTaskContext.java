@@ -19,6 +19,7 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import com.alibaba.fastjson.JSON;
 
 /**
  * 下载任务上下文
@@ -47,6 +48,9 @@ public class DownloadTaskContext {
         this.record = record;
         this.repository = repo;
         this.chunkExecutor = new ForkJoinPool(Math.min(threads + 1, 32));
+        this.supportRange = record.getSupportRange() != null ? record.getSupportRange() : true;
+        // 恢复chunks信息
+        restoreChunks();
     }
 
     // Legacy getter methods for compatibility
@@ -75,7 +79,8 @@ public class DownloadTaskContext {
     }
 
     public void start() {
-        if (status == DownloadStatus.DOWNLOADING || status == DownloadStatus.FINISHED) return;
+        if (status == DownloadStatus.DOWNLOADING || status == DownloadStatus.FINISHED)
+            return;
 
         // 异步启动防止阻塞Controller
         new Thread(() -> {
@@ -145,10 +150,12 @@ public class DownloadTaskContext {
                 if (contentRange != null) {
                     String val = contentRange.getValue();
                     int slash = val.lastIndexOf('/');
-                    if (slash > 0) len = Long.parseLong(val.substring(slash + 1));
+                    if (slash > 0)
+                        len = Long.parseLong(val.substring(slash + 1));
                 }
                 record.setTotalSize(len);
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+            }
         }
 
         if (rangeHeader != null && "bytes".equalsIgnoreCase(rangeHeader.getValue())) {
@@ -186,7 +193,7 @@ public class DownloadTaskContext {
     private void prepare() throws IOException {
         RequestConfig config = RequestConfig.custom()
                 .setConnectTimeout(10000) // 连接超时
-                .setSocketTimeout(30000)  // 读取超时
+                .setSocketTimeout(30000) // 读取超时
                 .setRedirectsEnabled(true)// 允许重定向 (解决 GitHub 问题)
                 .build();
 
@@ -219,15 +226,18 @@ public class DownloadTaskContext {
             // 4. 占位 (只有已知大小才占位)
             if (record.getTotalSize() != null && record.getTotalSize() > 0) {
                 File file = new File(record.getSavePath(), record.getFileName());
-                if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
+                if (!file.getParentFile().exists())
+                    file.getParentFile().mkdirs();
                 try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
                     raf.setLength(record.getTotalSize());
                 }
             } else {
                 // 未知大小时，标记为 -1
-                if(record.getTotalSize() == null) record.setTotalSize(-1L);
+                if (record.getTotalSize() == null)
+                    record.setTotalSize(-1L);
                 this.supportRange = false; // 未知大小强制不支持 Range
             }
+            record.setSupportRange(this.supportRange);
         }
     }
 
@@ -246,7 +256,8 @@ public class DownloadTaskContext {
                             long curr = chunk.getCurrent().get();
                             long sp = curr - chunk.getLastRecordBytes();
                             // 修复负数bug (极少数情况)
-                            if (sp < 0) sp = 0;
+                            if (sp < 0)
+                                sp = 0;
                             chunk.setSpeed(sp);
                             chunk.setLastRecordBytes(curr);
                             sumSpeed += sp;
@@ -260,14 +271,17 @@ public class DownloadTaskContext {
                     if (allFinished && !chunkMap.isEmpty()) {
                         status = DownloadStatus.FINISHED;
                         updateStatusInDb("FINISHED");
+                        saveRecord(); // 保存chunks信息以记录线程颜色
                         break;
                     }
 
                     // 仅在支持 Range 且大小已知时尝试重分配
-                    if(supportRange && record.getTotalSize() > 0) {
+                    if (supportRange && record.getTotalSize() > 0) {
                         tryRebalance();
                     }
-                } catch (Exception e) { e.printStackTrace(); }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }).start();
     }
@@ -297,7 +311,10 @@ public class DownloadTaskContext {
                     chunkInfo.setErrorCount(chunkInfo.getErrorCount() + 1);
                     log.warn("任务 [{}] Chunk {} 下载出错, 重试 {}/5",
                             record.getId(), chunkInfo.getId(), chunkInfo.getErrorCount());
-                    try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ignored) {
+                    }
                 }
             }
 
@@ -322,8 +339,8 @@ public class DownloadTaskContext {
             File targetFile = new File(record.getSavePath(), record.getFileName());
 
             try (CloseableHttpResponse response = client.execute(request);
-                 InputStream is = response.getEntity().getContent();
-                 RandomAccessFile raf = new RandomAccessFile(targetFile, "rw")) {
+                    InputStream is = response.getEntity().getContent();
+                    RandomAccessFile raf = new RandomAccessFile(targetFile, "rw")) {
 
                 if (supportRange && record.getTotalSize() > 0) {
                     raf.seek(startPos);
@@ -351,12 +368,15 @@ public class DownloadTaskContext {
 
                 // 判定完成
                 if (supportRange && record.getTotalSize() > 0) {
-                    if (chunkInfo.getCurrent().get() >= chunkInfo.getEnd()) chunkInfo.setFinished(true);
+                    if (chunkInfo.getCurrent().get() >= chunkInfo.getEnd())
+                        chunkInfo.setFinished(true);
                 } else {
                     // 流读完就是完成
                     chunkInfo.setFinished(true);
-                    // 更新总大小
+                    // 更新总大小和状态
                     record.setTotalSize(chunkInfo.getCurrent().get());
+                    status = DownloadStatus.FINISHED;
+                    updateStatusInDb("FINISHED");
                     saveRecord();
                 }
             }
@@ -364,7 +384,51 @@ public class DownloadTaskContext {
     }
 
     private void saveRecord() {
+        // 保存chunks信息
+        saveChunks();
         repository.save(record);
+    }
+
+    private void saveChunks() {
+        if (!chunkMap.isEmpty()) {
+            // 将chunkMap转换为JSON字符串保存
+            List<Map<String, Object>> chunkList = new ArrayList<>();
+            for (ChunkInfo chunk : chunkMap.values()) {
+                Map<String, Object> chunkData = new HashMap<>();
+                chunkData.put("id", chunk.getId());
+                chunkData.put("start", chunk.getStart());
+                chunkData.put("end", chunk.getEnd());
+                chunkData.put("current", chunk.getCurrentPos());
+                chunkData.put("colorIndex", chunk.getColorIndex());
+                chunkData.put("finished", chunk.isFinished());
+                chunkList.add(chunkData);
+            }
+            record.setChunksJson(JSON.toJSONString(chunkList));
+        }
+    }
+
+    private void restoreChunks() {
+        String chunksJson = record.getChunksJson();
+        if (chunksJson != null && !chunksJson.isEmpty()) {
+            try {
+                List<Map<String, Object>> chunkList = JSON.parseObject(chunksJson, List.class);
+                for (Map<String, Object> chunkData : chunkList) {
+                    String id = (String) chunkData.get("id");
+                    long start = ((Number) chunkData.get("start")).longValue();
+                    long end = ((Number) chunkData.get("end")).longValue();
+                    long current = ((Number) chunkData.get("current")).longValue();
+                    int colorIndex = ((Number) chunkData.get("colorIndex")).intValue();
+                    boolean finished = (Boolean) chunkData.get("finished");
+
+                    ChunkInfo chunk = new ChunkInfo(id, start, end, current, colorIndex);
+                    chunk.setFinished(finished);
+                    chunkMap.put(id, chunk);
+                }
+                log.info("恢复 {} 个chunk信息", chunkMap.size());
+            } catch (Exception e) {
+                log.error("恢复chunk信息失败", e);
+            }
+        }
     }
 
     private void updateStatusInDb(String status) {
@@ -381,14 +445,16 @@ public class DownloadTaskContext {
     private synchronized void performSplit(ChunkInfo parent) {
         // 停止旧的
         ChunkWorker worker = activeWorkers.get(parent.getId());
-        if(worker != null) worker.running.set(false);
+        if (worker != null)
+            worker.running.set(false);
 
         long mid = parent.getCurrent().get() + (parent.getEnd() - parent.getCurrent().get()) / 2;
         long oldEnd = parent.getEnd();
 
         parent.setEnd(mid);
         // 新分片赋予新的 ColorIndex (简单累加)
-        ChunkInfo newChunk = new ChunkInfo(UUID.randomUUID().toString(), mid + 1, oldEnd, mid + 1, parent.getColorIndex() + 1);
+        ChunkInfo newChunk = new ChunkInfo(UUID.randomUUID().toString(), mid + 1, oldEnd, mid + 1,
+                parent.getColorIndex() + 1);
 
         chunkMap.put(newChunk.getId(), newChunk);
         submitTask(parent); // 重新提交前半段

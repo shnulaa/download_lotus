@@ -17,8 +17,16 @@ public class DownloadRecord {
     private String fileName;
 
     private Long totalSize; // -1 表示未知
-    private String status;  // IDLE, DOWNLOADING, FINISHED, ERROR, etc.
+    private String status; // IDLE, DOWNLOADING, FINISHED, ERROR, etc.
+
     private Date createdTime;
+
+    @Column(columnDefinition = "boolean default true")
+    private Boolean supportRange = true;
+
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String chunksJson; // 存储chunk信息的JSON字符串
 
     // 用于UI展示的简单字段
     @Transient
@@ -97,5 +105,21 @@ public class DownloadRecord {
 
     public void setSpeed(long speed) {
         this.speed = speed;
+    }
+
+    public Boolean getSupportRange() {
+        return supportRange;
+    }
+
+    public void setSupportRange(Boolean supportRange) {
+        this.supportRange = supportRange;
+    }
+
+    public String getChunksJson() {
+        return chunksJson;
+    }
+
+    public void setChunksJson(String chunksJson) {
+        this.chunksJson = chunksJson;
     }
 }

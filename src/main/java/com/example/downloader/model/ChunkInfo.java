@@ -36,7 +36,6 @@ public class ChunkInfo {
         this.finished = false;
         this.errorCount = 0;
         this.colorIndex = colorIndex;
-        this.colorIndex = colorIndex;
     }
 
     public long getCurrentPos() {

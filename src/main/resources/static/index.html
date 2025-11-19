@@ -123,8 +123,7 @@
                 <el-tag size="small"
                     :type="wsStatus === 'connected' ? 'success' : wsStatus === 'connecting' ? 'warning' : 'danger'"
                     :title="wsError">
-                    {{ wsStatus === 'connected' ? '🟢 已连接 (' + msgCount + ')' : wsStatus === 'connecting' ? '🟡 连接中' :
-                    '🔴 断开 (' + wsError
+                    {{ wsStatus === 'connected' ? '🟢 已连接' : wsStatus === 'connecting' ? '🟡 连接中' : '🔴 断开 (' + wsError
                     + ')' }}
                 </el-tag>
                 <el-button type="primary" @click="showCreateDialog = true" :icon="Plus">新建任务</el-button>
@@ -153,10 +152,17 @@
                         {{ task.totalSize > 0 ? formatSize(task.totalSize) : '未知大小' }}
                     </span>
                     <span>{{ formatPercent(task) }}%</span>
+                    <el-link type="primary" :underline="false" @click="task.showGrid = !task.showGrid"
+                        v-if="task.totalSize > 0 && task.supportRange" style="margin-left: 15px;">
+                        {{ task.showGrid ? '收起区块' : '查看区块' }}
+                        <el-icon class="el-icon--right">
+                            <component :is="task.showGrid ? 'ArrowUp' : 'ArrowDown'" />
+                        </el-icon>
+                    </el-link>
                 </div>
 
                 <!-- 核心可视化：400格方阵 (仅当已知大小时显示) -->
-                <div v-if="task.totalSize > 0 && task.supportRange" class="grid-map">
+                <div v-if="task.showGrid && task.totalSize > 0 && task.supportRange" class="grid-map">
                     <div v-for="(cell, idx) in getGridMap(task)" :key="idx" class="grid-cell"
                         :style="getCellStyle(cell)" :title="cell.tip">
                     </div>
@@ -197,9 +203,6 @@
                 <el-form-item label="URL">
                     <el-input v-model="form.url" placeholder="https://..."></el-input>
                 </el-form-item>
-                <el-form-item label="保存路径">
-                    <el-input v-model="form.path" placeholder="./downloads"></el-input>
-                </el-form-item>
                 <el-form-item label="线程数">
                     <el-slider v-model="form.threads" :min="1" :max="32" show-input></el-slider>
                 </el-form-item>
@@ -226,7 +229,7 @@
                 const msgCount = ref(0);
                 const wsClient = ref(null);
                 const reconnectTimer = ref(null);
-                const form = ref({ url: 'https://officecdn-microsoft-com.akamaized.net/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_Office_16.55.21111400_BusinessPro_Installer.pkg', path: './Temp', threads: 8 }); // 默认路径需根据系统调整
+                const form = ref({ url: 'https://officecdn-microsoft-com.akamaized.net/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_Office_16.55.21111400_BusinessPro_Installer.pkg', threads: 8 });
 
                 // 预定义颜色池 (HSL生成)
                 const colors = Array.from({ length: 32 }, (_, i) => `hsl(${i * 137.508}, 70%, 60%)`);
@@ -236,10 +239,10 @@
                     // 这里只更新元数据，实时进度靠WS合并
                     // 为防止列表跳动，仅合并数据，不直接覆盖数组引用（如果ID匹配）
                     if (tasks.value.length === 0) {
-                        tasks.value = res.data.content;
+                        tasks.value = res.data.content.map(t => ({ ...t, showGrid: false }));
                     } else {
                         // 简单处理：直接替换，ws会补全
-                        tasks.value = res.data.content;
+                        tasks.value = res.data.content.map(t => ({ ...t, showGrid: false }));
                     }
                     totalTasks.value = res.data.totalElements;
                 };
@@ -299,7 +302,9 @@
 
                 const createTask = async () => {
                     if (!form.value.url) return;
-                    const response = await axios.post('/api/download/start', form.value);
+                    // 确保始终使用固定路径
+                    const payload = { ...form.value, path: './Temp' };
+                    const response = await axios.post('/api/download/start', payload);
                     const taskId = response.data;
 
                     // 立即创建临时任务对象并添加到列表前端，实现实时显示
@@ -312,7 +317,8 @@
                         downloaded: 0,
                         speed: 0,
                         createdTime: new Date().toISOString(),
-                        supportRange: false
+                        supportRange: false,
+                        showGrid: false
                     };
                     tasks.value.unshift(tempTask);
                     totalTasks.value++;
@@ -345,7 +351,17 @@
                 const getGridMap = (task) => {
                     const totalBlocks = 400; // 20x20
                     const cells = new Array(totalBlocks).fill(null);
-                    if (!task.chunks) return cells;
+
+                    // 如果任务已完成，仍然显示每个线程的颜色（而不是全绿）
+                    const isFinished = task.status === 'FINISHED';
+
+                    if (!task.chunks) {
+                        // 如果没有chunks信息但已完成，显示全绿
+                        if (isFinished) {
+                            return cells.fill({ status: 'finished', color: '#67C23A', tip: 'Completed' });
+                        }
+                        return cells;
+                    }
 
                     // 确保 chunks 是数组
                     const chunks = Array.isArray(task.chunks) ? task.chunks : Object.values(task.chunks);
@@ -364,8 +380,11 @@
                         // 填充颜色
                         for (let i = startIdx; i <= Math.min(endIdx, totalBlocks - 1); i++) {
                             let status = 'pending';
-                            if (i < currentIdx) status = 'finished'; // 已下载区域
-                            else if (i === currentIdx) status = 'downloading'; // 正在下载的头
+                            if (isFinished || i < currentIdx) {
+                                status = 'finished'; // 已完成或已下载区域
+                            } else if (i === currentIdx) {
+                                status = 'downloading'; // 正在下载的头
+                            }
 
                             // 如果该格未被填充或被"更活跃"的状态覆盖
                             if (!cells[i] || status === 'downloading') {
@@ -382,7 +401,8 @@
 
                 const getCellStyle = (cell) => {
                     if (!cell) return {}; // 白色背景
-                    if (cell.status === 'finished') return { backgroundColor: '#67C23A' }; // 统一绿色表示完成，或者用 cell.color 但加深
+                    // 已完成的方块显示线程颜色（稍微加深透明度以示区别）
+                    if (cell.status === 'finished') return { backgroundColor: cell.color, opacity: 0.8 };
                     if (cell.status === 'downloading') return { backgroundColor: cell.color }; // 线程色
                     return { backgroundColor: '#eee' }; // 灰色等待
                 };

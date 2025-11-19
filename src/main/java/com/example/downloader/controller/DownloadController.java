@@ -24,6 +24,7 @@ import java.net.URLEncoder;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import com.alibaba.fastjson.JSON;
 
 @RestController
 @RequestMapping("/api/download")
@@ -125,7 +126,6 @@ public class DownloadController {
 
     // 定时推送数据
     @Scheduled(fixedRate = 800)
-    @Scheduled(fixedRate = 800)
     public void pushProgress() {
         try {
             List<Map<String, Object>> updates = new ArrayList<>();
@@ -166,6 +166,17 @@ public class DownloadController {
             // 离线/历史任务
             map.put("speed", 0);
             map.put("downloaded", r.getTotalSize() == null ? 0 : r.getTotalSize());
+            map.put("supportRange", r.getSupportRange() != null ? r.getSupportRange() : true);
+
+            // 从数据库恢复chunks信息（用于显示线程颜色）
+            if (r.getChunksJson() != null && !r.getChunksJson().isEmpty()) {
+                try {
+                    List<Map<String, Object>> chunkList = JSON.parseObject(r.getChunksJson(), List.class);
+                    map.put("chunks", chunkList);
+                } catch (Exception e) {
+                    // 如果解析失败，不显示chunks
+                }
+            }
         }
         return map;
     }
