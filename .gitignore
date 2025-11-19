@@ -9,6 +9,7 @@ target/
 *.iml
 *.ipr
 *.iws
+.claude/
 
 # VS Code
 .vscode/
