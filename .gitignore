@@ -43,3 +43,4 @@ Temp/
 
 # Maven
 maven-wrapper.jar
+/.claude/
