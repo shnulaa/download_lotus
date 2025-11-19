@@ -184,6 +184,9 @@
                             @click="downloadToLocal(task)">
                             📥 取回本地
                         </el-button>
+                        <el-button type="primary" size="small" @click="copyDownloadLink(task)">
+                            📋 复制下载链接
+                        </el-button>
                         <el-button v-if="task.status === 'DOWNLOADING'" type="warning" size="small"
                             @click="control(task.id, 'pause')">暂停</el-button>
                         <el-button type="danger" size="small" @click="confirmDelete(task)">删除</el-button>
@@ -249,8 +252,9 @@
 
                 const connectWS = () => {
                     wsStatus.value = 'connecting';
+                    wsError.value = '';
 
-                    const socket = new SockJS('/ws');
+                    const socket = new SockJS('http://localhost:8080/ws');
                     const stomp = Stomp.over(socket);
                     stomp.debug = null;
 
@@ -275,20 +279,16 @@
                             });
 
                             // 连接成功后立即加载任务列表
-                            loadTasks(currentPage.value);
+                            loadTasks();
                         },
                         (error) => {
-                            wsStatus.value = 'disconnected';
-                            wsError.value = 'Connect Error';
-                            console.error('WebSocket连接错误:', error);
-                            // 3秒后尝试重连
-                            reconnectTimer.value = setTimeout(() => {
-                                connectWS();
-                            }, 3000);
+                            wsStatus.value = 'error';
+                            wsError.value = error.toString();
+                            console.error('WebSocket连接失败:', error);
+                            // 5秒后重连
+                            setTimeout(connectWS, 5000);
                         }
                     );
-
-                    // 监听连接关闭事件
                     socket.onclose = () => {
                         if (wsStatus.value === 'connected') {
                             wsStatus.value = 'disconnected';
@@ -330,6 +330,15 @@
                 const downloadToLocal = (task) => {
                     // 浏览器直接打开流地址
                     window.open(`http://localhost:8080/api/download/file/${task.id}`, '_blank');
+                };
+
+                const copyDownloadLink = (task) => {
+                    const downloadUrl = task.url;
+                    navigator.clipboard.writeText(downloadUrl).then(() => {
+                        ElMessage.success('下载链接已复制到剪贴板');
+                    }).catch(() => {
+                        ElMessage.error('复制失败');
+                    });
                 };
 
                 const confirmDelete = (task) => {
@@ -435,7 +444,7 @@
                 return {
                     tasks, totalTasks, showCreateDialog, form, wsStatus, wsError, msgCount,
                     createTask, handlePageChange: (p) => { currentPage.value = p; loadTasks(p); },
-                    downloadToLocal, confirmDelete, control: async (id, act) => axios.post(`http://localhost:8080/api/download/${id}/${act}`),
+                    downloadToLocal, copyDownloadLink, confirmDelete, control: async (id, act) => axios.post(`http://localhost:8080/api/download/${id}/${act}`),
                     getGridMap, getCellStyle, formatSize, formatPercent, getStatusType
                 };
             }

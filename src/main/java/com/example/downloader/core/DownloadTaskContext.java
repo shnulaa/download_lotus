@@ -79,9 +79,12 @@ public class DownloadTaskContext {
     }
 
     public void start() {
-        if (status == DownloadStatus.DOWNLOADING || status == DownloadStatus.FINISHED)
+        if (status == DownloadStatus.DOWNLOADING || status == DownloadStatus.FINISHED) {
+            log.warn("任务 {} 已在运行或已完成，跳过启动", record.getId());
             return;
+        }
 
+        log.info("开始启动下载任务：{}, URL: {}", record.getId(), record.getUrl());
         // 异步启动防止阻塞Controller
         new Thread(() -> {
             try {
@@ -96,9 +99,11 @@ public class DownloadTaskContext {
                 if (chunkMap.isEmpty()) {
                     // 这种情况下是初始化分片
                     if (supportRange && record.getTotalSize() > 0) {
+                        log.info("任务 {} 支持Range，分片数: {}", record.getId(), chunkExecutor.getParallelism());
                         splitChunks(chunkExecutor.getParallelism());
                     } else {
                         // 针对 GitHub 这种无法获取长度或不支持 Range 的
+                        log.info("任务 {} 不支持Range，使用流式下载", record.getId());
                         createSingleStreamChunk();
                     }
                 }
@@ -117,6 +122,7 @@ public class DownloadTaskContext {
 
     public void pause() {
         if (status == DownloadStatus.DOWNLOADING) {
+            log.info("暂停下载任务: {}", record.getId());
             status = DownloadStatus.PAUSED;
             activeWorkers.values().forEach(ChunkWorker::stopWork);
             activeWorkers.clear();
@@ -125,6 +131,7 @@ public class DownloadTaskContext {
     }
 
     public void cancel() {
+        log.info("取消下载任务: {}", record.getId());
         status = DownloadStatus.CANCELED;
         activeWorkers.values().forEach(ChunkWorker::stopWork);
         activeWorkers.clear();
@@ -132,7 +139,7 @@ public class DownloadTaskContext {
         if (record.getFileName() != null) {
             File file = new File(record.getSavePath(), record.getFileName());
             if (file.exists() && file.delete()) {
-                log.info("Task {} deleted temporary file: {}", record.getId(), record.getFileName());
+                log.info("任务 {} 已删除临时文件: {}", record.getId(), record.getFileName());
             }
         }
         updateStatusInDb("CANCELED");
@@ -269,6 +276,7 @@ public class DownloadTaskContext {
                     this.globalSpeed = sumSpeed;
 
                     if (allFinished && !chunkMap.isEmpty()) {
+                        log.info("任务 {} 所有分片下载完成！文件: {}", record.getId(), record.getFileName());
                         status = DownloadStatus.FINISHED;
                         updateStatusInDb("FINISHED");
                         saveRecord(); // 保存chunks信息以记录线程颜色

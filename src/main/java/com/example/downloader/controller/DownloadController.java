@@ -25,7 +25,9 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import com.alibaba.fastjson.JSON;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/download")
 @CrossOrigin
@@ -58,6 +60,7 @@ public class DownloadController {
         record.setStatus("IDLE");
         repository.save(record);
 
+        log.info("创建新下载任务: {}, URL: {}, 线程数: {}", record.getId(), url, threads);
         DownloadTaskContext context = new DownloadTaskContext(record, repository, threads);
         activeContexts.put(record.getId(), context);
         context.start();
@@ -94,6 +97,7 @@ public class DownloadController {
 
     @DeleteMapping("/{id}")
     public void delete(@PathVariable String id, @RequestParam(defaultValue = "false") boolean deleteFile) {
+        log.info("删除任务: {}, 是否删除文件: {}", id, deleteFile);
         DownloadRecord record = repository.findById(id).orElse(null);
         if (record != null) {
             // 停止任务
