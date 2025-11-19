@@ -1,0 +1,44 @@
+# Compiled class files
+*.class
+
+# Target directory (Maven build output)
+target/
+
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Log files
+*.log
+
+# Database files (optional - exclude if not needed in repo)
+downloader.db
+
+# Temporary files
+Temp/
+*.tmp
+*.bak
+*.swp
+
+# Package files
+*.jar
+*.war
+*.ear
+
+# Maven
+maven-wrapper.jar
