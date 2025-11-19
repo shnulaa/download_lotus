@@ -11,9 +11,9 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Data
 public class ChunkInfo {
-    private String id;          // 分片唯一ID
-    private long start;         // 起始字节位置
-    private long end;           // 结束字节位置
+    private String id; // 分片唯一ID
+    private long start; // 起始字节位置
+    private long end; // 结束字节位置
     private AtomicLong current; // 当前已下载位置(绝对位置)
     private volatile long speed;// 当前速度 (bytes/s)
     private volatile int errorCount; // 错误次数
@@ -34,6 +34,11 @@ public class ChunkInfo {
         this.finished = false;
         this.errorCount = 0;
         this.colorIndex = colorIndex;
+        this.colorIndex = colorIndex;
+    }
+
+    public long getCurrentPos() {
+        return current.get();
     }
 
 }

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <title>Pro Downloader V1.0.1</title>
@@ -11,20 +12,30 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <style>
-        body { background-color: #f5f7fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .main-container { max-width: 900px; margin: 20px auto; }
+        body {
+            background-color: #f5f7fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .main-container {
+            max-width: 900px;
+            margin: 20px auto;
+        }
 
         /* 密集方块图样式 */
         .grid-map {
             display: grid;
-            grid-template-columns: repeat(20, 1fr); /* 20列 */
-            grid-template-rows: repeat(20, 15px);   /* 20行，固定高度形成正方形 */
+            grid-template-columns: repeat(20, 1fr);
+            /* 20列 */
+            grid-template-rows: repeat(20, 15px);
+            /* 20行，固定高度形成正方形 */
             gap: 1px;
             background: #e4e7ed;
             border: 1px solid #dcdfe6;
             padding: 2px;
             margin-top: 10px;
         }
+
         .grid-cell {
             width: 100%;
             height: 100%;
@@ -33,30 +44,84 @@
         }
 
         /* 任务卡片 */
-        .task-card { margin-bottom: 15px; position: relative; }
-        .task-info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .task-title { font-weight: bold; font-size: 16px; color: #303133; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
-        .speed-badge { background: #409EFF; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .task-card {
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .task-info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .task-title {
+            font-weight: bold;
+            font-size: 16px;
+            color: #303133;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 60%;
+        }
+
+        .speed-badge {
+            background: #409EFF;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
 
         /* 颜色池：为不同线程准备的颜色 */
-        .color-0 { background-color: #409EFF; }
-        .color-1 { background-color: #67C23A; }
-        .color-2 { background-color: #E6A23C; }
-        .color-3 { background-color: #F56C6C; }
-        .color-4 { background-color: #909399; }
-        .color-5 { background-color: #a0cfff; }
-        .color-6 { background-color: #b3e19d; }
-        .color-7 { background-color: #f3d19e; }
+        .color-0 {
+            background-color: #409EFF;
+        }
+
+        .color-1 {
+            background-color: #67C23A;
+        }
+
+        .color-2 {
+            background-color: #E6A23C;
+        }
+
+        .color-3 {
+            background-color: #F56C6C;
+        }
+
+        .color-4 {
+            background-color: #909399;
+        }
+
+        .color-5 {
+            background-color: #a0cfff;
+        }
+
+        .color-6 {
+            background-color: #b3e19d;
+        }
+
+        .color-7 {
+            background-color: #f3d19e;
+        }
+
         /* ... 更多颜色可以通过 JS 动态生成 HSL */
-        .cell-finished { background-color: #67C23A !important; opacity: 1; }
+        .cell-finished {
+            background-color: #67C23A !important;
+            opacity: 1;
+        }
     </style>
 </head>
+
 <body>
     <div id="app" class="main-container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h2>🚀 Pro Downloader <small style="font-size: 14px; color: #999;">V1.0.2</small></h2>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <el-tag size="small" :type="wsStatus === 'connected' ? 'success' : wsStatus === 'connecting' ? 'warning' : 'danger'">
+                <el-tag size="small"
+                    :type="wsStatus === 'connected' ? 'success' : wsStatus === 'connecting' ? 'warning' : 'danger'">
                     {{ wsStatus === 'connected' ? '🟢 已连接' : wsStatus === 'connecting' ? '🟡 连接中' : '🔴 断开' }}
                 </el-tag>
                 <el-button type="primary" @click="showCreateDialog = true" :icon="Plus">新建任务</el-button>
@@ -73,7 +138,8 @@
                         <span v-if="task.status === 'DOWNLOADING'" class="speed-badge">
                             ⚡ {{ formatSize(task.speed) }}/s
                         </span>
-                        <el-tag size="small" :type="getStatusType(task.status)" style="margin-left: 10px;">{{ task.status }}</el-tag>
+                        <el-tag size="small" :type="getStatusType(task.status)" style="margin-left: 10px;">{{
+                            task.status }}</el-tag>
                     </div>
                 </div>
 
@@ -88,29 +154,29 @@
 
                 <!-- 核心可视化：400格方阵 (仅当已知大小时显示) -->
                 <div v-if="task.totalSize > 0 && task.supportRange" class="grid-map">
-                    <div v-for="(cell, idx) in getGridMap(task)"
-                         :key="idx"
-                         class="grid-cell"
-                         :style="getCellStyle(cell)"
-                         :title="cell.tip">
+                    <div v-for="(cell, idx) in getGridMap(task)" :key="idx" class="grid-cell"
+                        :style="getCellStyle(cell)" :title="cell.tip">
                     </div>
                 </div>
                 <!-- 流式下载显示进度条 -->
                 <div v-else-if="task.status === 'DOWNLOADING' && task.totalSize <= 0">
-                     <el-progress :percentage="100" :indeterminate="true" :format="() => '流式传输中...'" striped></el-progress>
+                    <el-progress :percentage="100" :indeterminate="true" :format="() => '流式传输中...'"
+                        striped></el-progress>
                 </div>
                 <!-- 流式下载完成 -->
                 <div v-else-if="task.status === 'FINISHED' && task.totalSize <= 0">
-                     <el-progress :percentage="100" status="success" :format="() => '已完成'" striped></el-progress>
+                    <el-progress :percentage="100" status="success" :format="() => '已完成'" striped></el-progress>
                 </div>
 
                 <!-- 操作栏 -->
                 <div style="margin-top: 15px; text-align: right;">
                     <el-button-group>
-                        <el-button v-if="task.status === 'FINISHED'" type="success" size="small" @click="downloadToLocal(task)">
+                        <el-button v-if="task.status === 'FINISHED'" type="success" size="small"
+                            @click="downloadToLocal(task)">
                             📥 取回本地
                         </el-button>
-                        <el-button v-if="task.status === 'DOWNLOADING'" type="warning" size="small" @click="control(task.id, 'pause')">暂停</el-button>
+                        <el-button v-if="task.status === 'DOWNLOADING'" type="warning" size="small"
+                            @click="control(task.id, 'pause')">暂停</el-button>
                         <el-button type="danger" size="small" @click="confirmDelete(task)">删除</el-button>
                     </el-button-group>
                 </div>
@@ -118,13 +184,8 @@
         </div>
 
         <!-- 分页 -->
-        <el-pagination
-            background
-            layout="prev, pager, next"
-            :total="totalTasks"
-            :page-size="5"
-            @current-change="handlePageChange"
-            style="justify-content: center; margin-top: 20px;">
+        <el-pagination background layout="prev, pager, next" :total="totalTasks" :page-size="5"
+            @current-change="handlePageChange" style="justify-content: center; margin-top: 20px;">
         </el-pagination>
 
         <!-- 新建弹窗 -->
@@ -160,16 +221,16 @@
                 const wsStatus = ref('disconnected'); // WebSocket连接状态: connecting, connected, disconnected
                 const wsClient = ref(null);
                 const reconnectTimer = ref(null);
-                const form = ref({ url: '', path: 'D:/Temp', threads: 8 }); // 默认路径需根据系统调整
+                const form = ref({ url: 'https://officecdn-microsoft-com.akamaized.net/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_Office_16.55.21111400_BusinessPro_Installer.pkg', path: './Temp', threads: 8 }); // 默认路径需根据系统调整
 
                 // 预定义颜色池 (HSL生成)
-                const colors = Array.from({length: 32}, (_, i) => `hsl(${i * 137.508}, 70%, 60%)`);
+                const colors = Array.from({ length: 32 }, (_, i) => `hsl(${i * 137.508}, 70%, 60%)`);
 
                 const loadTasks = async (page = 1) => {
-                    const res = await axios.get(`/api/download/list?page=${page-1}&size=5`);
+                    const res = await axios.get(`/api/download/list?page=${page - 1}&size=5`);
                     // 这里只更新元数据，实时进度靠WS合并
                     // 为防止列表跳动，仅合并数据，不直接覆盖数组引用（如果ID匹配）
-                    if(tasks.value.length === 0) {
+                    if (tasks.value.length === 0) {
                         tasks.value = res.data.content;
                     } else {
                         // 简单处理：直接替换，ws会补全
@@ -229,7 +290,7 @@
                 };
 
                 const createTask = async () => {
-                    if(!form.value.url) return;
+                    if (!form.value.url) return;
                     const response = await axios.post('/api/download/start', form.value);
                     const taskId = response.data;
 
@@ -264,10 +325,10 @@
                         distinguishCancelAndClose: true,
                         type: 'warning'
                     }).then(() => {
-                        axios.delete(`http://localhost:8080/api/download/${task.id}?deleteFile=true`).then(()=>loadTasks(currentPage.value));
+                        axios.delete(`http://localhost:8080/api/download/${task.id}?deleteFile=true`).then(() => loadTasks(currentPage.value));
                     }).catch((action) => {
-                        if(action === 'cancel') {
-                             axios.delete(`http://localhost:8080/api/download/${task.id}?deleteFile=false`).then(()=>loadTasks(currentPage.value));
+                        if (action === 'cancel') {
+                            axios.delete(`http://localhost:8080/api/download/${task.id}?deleteFile=false`).then(() => loadTasks(currentPage.value));
                         }
                     });
                 };
@@ -276,7 +337,7 @@
                 const getGridMap = (task) => {
                     const totalBlocks = 400; // 20x20
                     const cells = new Array(totalBlocks).fill(null);
-                    if(!task.chunks) return cells;
+                    if (!task.chunks) return cells;
 
                     const bytesPerBlock = task.totalSize / totalBlocks;
 
@@ -284,16 +345,19 @@
                         // 计算该chunk覆盖的 block 范围
                         const startIdx = Math.floor(chunk.start / bytesPerBlock);
                         const endIdx = Math.floor(chunk.end / bytesPerBlock);
-                        const currentIdx = Math.floor(chunk.current / bytesPerBlock);
+
+                        // 兼容处理 AtomicLong 序列化问题
+                        const currentVal = (typeof chunk.current === 'number') ? chunk.current : (chunk.currentPos || 0);
+                        const currentIdx = Math.floor(currentVal / bytesPerBlock);
 
                         // 填充颜色
-                        for(let i = startIdx; i <= Math.min(endIdx, totalBlocks - 1); i++) {
+                        for (let i = startIdx; i <= Math.min(endIdx, totalBlocks - 1); i++) {
                             let status = 'pending';
-                            if(i < currentIdx) status = 'finished'; // 已下载区域
-                            else if(i === currentIdx) status = 'downloading'; // 正在下载的头
+                            if (i < currentIdx) status = 'finished'; // 已下载区域
+                            else if (i === currentIdx) status = 'downloading'; // 正在下载的头
 
                             // 如果该格未被填充或被"更活跃"的状态覆盖
-                            if(!cells[i] || status === 'downloading') {
+                            if (!cells[i] || status === 'downloading') {
                                 cells[i] = {
                                     status: status,
                                     color: colors[chunk.colorIndex % 32],
@@ -306,29 +370,29 @@
                 };
 
                 const getCellStyle = (cell) => {
-                    if(!cell) return {}; // 白色背景
-                    if(cell.status === 'finished') return { backgroundColor: '#67C23A' }; // 统一绿色表示完成，或者用 cell.color 但加深
-                    if(cell.status === 'downloading') return { backgroundColor: cell.color }; // 线程色
+                    if (!cell) return {}; // 白色背景
+                    if (cell.status === 'finished') return { backgroundColor: '#67C23A' }; // 统一绿色表示完成，或者用 cell.color 但加深
+                    if (cell.status === 'downloading') return { backgroundColor: cell.color }; // 线程色
                     return { backgroundColor: '#eee' }; // 灰色等待
                 };
 
                 const formatSize = (size) => {
-                    if(size==null || size<0) return 'Unknown';
-                    if(size===0) return '0 B';
-                    const k=1024, sizes=['B','KB','MB','GB'];
-                    const i=Math.floor(Math.log(size)/Math.log(k));
-                    return parseFloat((size/Math.pow(k,i)).toFixed(2))+' '+sizes[i];
+                    if (size == null || size < 0) return 'Unknown';
+                    if (size === 0) return '0 B';
+                    const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(size) / Math.log(k));
+                    return parseFloat((size / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
                 };
 
                 const formatPercent = (task) => {
-                    if(task.totalSize <= 0) return 0;
+                    if (task.totalSize <= 0) return 0;
                     return ((task.downloaded / task.totalSize) * 100).toFixed(1);
                 };
 
                 const getStatusType = (s) => {
-                    if(s==='FINISHED') return 'success';
-                    if(s==='DOWNLOADING') return 'primary';
-                    if(s==='ERROR') return 'danger';
+                    if (s === 'FINISHED') return 'success';
+                    if (s === 'DOWNLOADING') return 'primary';
+                    if (s === 'ERROR') return 'danger';
                     return 'info';
                 };
 
@@ -339,12 +403,13 @@
 
                 return {
                     tasks, totalTasks, showCreateDialog, form,
-                    createTask, handlePageChange: (p)=>{currentPage.value=p; loadTasks(p);},
-                    downloadToLocal, confirmDelete, control: async (id, act)=> axios.post(`http://localhost:8080/api/download/${id}/${act}`),
+                    createTask, handlePageChange: (p) => { currentPage.value = p; loadTasks(p); },
+                    downloadToLocal, confirmDelete, control: async (id, act) => axios.post(`http://localhost:8080/api/download/${id}/${act}`),
                     getGridMap, getCellStyle, formatSize, formatPercent, getStatusType
                 };
             }
         }).use(ElementPlus).mount('#app');
     </script>
 </body>
+
 </html>
