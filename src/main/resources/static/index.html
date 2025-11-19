@@ -54,8 +54,13 @@
 <body>
     <div id="app" class="main-container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2>🚀 Pro Downloader <small style="font-size: 14px; color: #999;">V1.0.1</small></h2>
-            <el-button type="primary" @click="showCreateDialog = true" :icon="Plus">新建任务</el-button>
+            <h2>🚀 Pro Downloader <small style="font-size: 14px; color: #999;">V1.0.2</small></h2>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <el-tag size="small" :type="wsStatus === 'connected' ? 'success' : wsStatus === 'connecting' ? 'warning' : 'danger'">
+                    {{ wsStatus === 'connected' ? '🟢 已连接' : wsStatus === 'connecting' ? '🟡 连接中' : '🔴 断开' }}
+                </el-tag>
+                <el-button type="primary" @click="showCreateDialog = true" :icon="Plus">新建任务</el-button>
+            </div>
         </div>
 
         <!-- 任务列表 -->
@@ -152,13 +157,16 @@
                 const totalTasks = ref(0);
                 const currentPage = ref(1);
                 const showCreateDialog = ref(false);
+                const wsStatus = ref('disconnected'); // WebSocket连接状态: connecting, connected, disconnected
+                const wsClient = ref(null);
+                const reconnectTimer = ref(null);
                 const form = ref({ url: '', path: 'D:/Temp', threads: 8 }); // 默认路径需根据系统调整
 
                 // 预定义颜色池 (HSL生成)
                 const colors = Array.from({length: 32}, (_, i) => `hsl(${i * 137.508}, 70%, 60%)`);
 
                 const loadTasks = async (page = 1) => {
-                    const res = await axios.get(`http://localhost:8080/api/download/list?page=${page-1}&size=5`);
+                    const res = await axios.get(`/api/download/list?page=${page-1}&size=5`);
                     // 这里只更新元数据，实时进度靠WS合并
                     // 为防止列表跳动，仅合并数据，不直接覆盖数组引用（如果ID匹配）
                     if(tasks.value.length === 0) {
@@ -171,21 +179,53 @@
                 };
 
                 const connectWS = () => {
-                    const socket = new SockJS('http://localhost:8080/ws');
+                    wsStatus.value = 'connecting';
+
+                    const socket = new SockJS('/ws');
                     const stomp = Stomp.over(socket);
                     stomp.debug = null;
-                    stomp.connect({}, () => {
-                        stomp.subscribe('/topic/progress', (msg) => {
-                            const updates = JSON.parse(msg.body);
-                            updates.forEach(u => {
-                                const idx = tasks.value.findIndex(t => t.id === u.id);
-                                if (idx !== -1) {
-                                    // 合并数据，保留UI状态
-                                    tasks.value[idx] = { ...tasks.value[idx], ...u };
-                                }
+
+                    stomp.connect({},
+                        () => {
+                            wsStatus.value = 'connected';
+                            wsClient.value = stomp;
+                            console.log('WebSocket连接成功');
+
+                            // 订阅进度更新
+                            stomp.subscribe('/topic/progress', (msg) => {
+                                const updates = JSON.parse(msg.body);
+                                updates.forEach(u => {
+                                    const idx = tasks.value.findIndex(t => t.id === u.id);
+                                    if (idx !== -1) {
+                                        // 合并数据，保留UI状态
+                                        tasks.value[idx] = { ...tasks.value[idx], ...u };
+                                    }
+                                });
                             });
-                        });
-                    });
+
+                            // 连接成功后立即加载任务列表
+                            loadTasks(currentPage.value);
+                        },
+                        (error) => {
+                            wsStatus.value = 'disconnected';
+                            console.error('WebSocket连接错误:', error);
+                            // 3秒后尝试重连
+                            reconnectTimer.value = setTimeout(() => {
+                                connectWS();
+                            }, 3000);
+                        }
+                    );
+
+                    // 监听连接关闭事件
+                    socket.onclose = () => {
+                        if (wsStatus.value === 'connected') {
+                            wsStatus.value = 'disconnected';
+                            console.log('WebSocket连接关闭，尝试重连...');
+                            reconnectTimer.value = setTimeout(() => {
+                                connectWS();
+                            }, 3000);
+                        }
+                    };
                 };
 
                 const createTask = async () => {
