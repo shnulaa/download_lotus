@@ -1,0 +1,12 @@
+com\example\downloader\core\DownloadTaskContext.class
+com\example\downloader\controller\DownloadController.class
+com\example\downloader\DownloaderApplication.class
+com\example\downloader\core\DownloadTaskContext$ChunkWorker.class
+com\example\downloader\config\WebSocketConfig.class
+com\example\downloader\config\SQLiteDialect.class
+com\example\downloader\model\ChunkInfo.class
+com\example\downloader\service\DownloadService.class
+com\example\downloader\entity\DownloadRecord.class
+com\example\downloader\model\DownloadStatus.class
+com\example\downloader\repo\DownloadRepository.class
+com\example\downloader\util\FileUtils.class
