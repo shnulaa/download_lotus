@@ -13,13 +13,12 @@ COPY src ./src
 # 构建应用（跳过测试以加快构建速度）
 RUN mvn clean package -DskipTests
 
-# 第二阶段：运行 (使用极小的 Alpine JRE)
-FROM eclipse-temurin:8-jre-alpine
+# 第二阶段：运行 (使用基于 Debian 的 JRE，解决 SSL 握手问题)
+FROM eclipse-temurin:8-jre
 
 WORKDIR /app
 
-# 设置时区（可选，方便查看日志时间）
-RUN apk add --no-cache tzdata
+# 设置时区
 ENV TZ=Asia/Shanghai
 
 # 从构建阶段复制 jar 包
