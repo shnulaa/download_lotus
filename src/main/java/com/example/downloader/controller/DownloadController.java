@@ -179,17 +179,40 @@ public class DownloadController {
         } else {
             // 离线/历史任务
             map.put("speed", 0);
-            map.put("downloaded", r.getTotalSize() == null ? 0 : r.getTotalSize());
             map.put("supportRange", r.getSupportRange() != null ? r.getSupportRange() : true);
 
-            // 从数据库恢复chunks信息（用于显示线程颜色）
+            long downloaded = 0;
+            boolean chunksLoaded = false;
+
+            // 从数据库恢复chunks信息
             if (r.getChunksJson() != null && !r.getChunksJson().isEmpty()) {
                 try {
                     List<Map<String, Object>> chunkList = JSON.parseObject(r.getChunksJson(), List.class);
                     map.put("chunks", chunkList);
+
+                    // 计算已下载大小
+                    for (Map<String, Object> chunk : chunkList) {
+                        long start = ((Number) chunk.get("start")).longValue();
+                        // 兼容 current 和 currentPos
+                        Object currentObj = chunk.get("current");
+                        if (currentObj == null)
+                            currentObj = chunk.get("currentPos");
+                        long current = currentObj != null ? ((Number) currentObj).longValue() : start;
+
+                        downloaded += (current - start);
+                    }
+                    chunksLoaded = true;
                 } catch (Exception e) {
-                    // 如果解析失败，不显示chunks
+                    // 解析失败
                 }
+            }
+
+            if ("FINISHED".equals(r.getStatus())) {
+                map.put("downloaded", r.getTotalSize() == null ? 0 : r.getTotalSize());
+            } else {
+                // 如果没有chunks信息或者解析失败，且不是完成状态，则显示0（或者之前保存的值，但这里没有保存字段）
+                // 改进：如果有chunksJson，用计算值；否则为0
+                map.put("downloaded", downloaded);
             }
         }
         return map;
