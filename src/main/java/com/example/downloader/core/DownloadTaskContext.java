@@ -84,13 +84,17 @@ public class DownloadTaskContext {
             return;
         }
 
-        log.info("开始启动下载任务：{}, URL: {}", record.getId(), record.getUrl());
+        log.info("开始启动下载任务：{}, URL: {}, 当前状态: {}", record.getId(), record.getUrl(), status);
         // 异步启动防止阻塞Controller
         new Thread(() -> {
             try {
+                // 只有IDLE状态才需要prepare
                 if (status == DownloadStatus.IDLE) {
                     prepare();
                     saveRecord(); // 保存入库
+                } else if (status == DownloadStatus.PAUSED) {
+                    // PAUSED状态恢复，不需要prepare
+                    log.info("从暂停状态恢复任务 {}, chunks数量: {}", record.getId(), chunkMap.size());
                 }
 
                 status = DownloadStatus.DOWNLOADING;

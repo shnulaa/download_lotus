@@ -117,15 +117,25 @@ public class DownloadController {
 
     @PostMapping("/{id}/{action}")
     public void control(@PathVariable String id, @PathVariable String action) {
-        DownloadTaskContext ctx = activeContexts.get(id);
-        // 如果内存没有（例如重启后），需重新构建Context (简化处理: 只有新建或一直运行的任务在内存)
-        // 完整版需从DB重建Context
-        if (ctx == null)
-            return;
-
-        if ("pause".equals(action))
-            ctx.pause();
-        // resume 逻辑需重新触发 start
+        if ("pause".equals(action)) {
+            DownloadTaskContext ctx = activeContexts.get(id);
+            if (ctx != null) {
+                ctx.pause();
+            }
+        } else if ("resume".equals(action)) {
+            DownloadTaskContext ctx = activeContexts.get(id);
+            if (ctx != null) {
+                ctx.start();
+            } else {
+                DownloadRecord record = repository.findById(id).orElse(null);
+                if (record != null && "PAUSED".equals(record.getStatus())) {
+                    log.info("恢复下载任务: {}", id);
+                    DownloadTaskContext newCtx = new DownloadTaskContext(record, repository, 8);
+                    activeContexts.put(id, newCtx);
+                    newCtx.start();
+                }
+            }
+        }
     }
 
     // 定时推送数据
