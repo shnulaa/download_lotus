@@ -6,6 +6,8 @@
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License">
 </p>
 
+![Screenshot](doc/1.png)
+
 Download Lotus 是一个基于 Spring Boot 开发的高性能多线程文件下载器，采用 Fork/Join 架构实现动态任务分配和断点续传功能。
 
 ## ✨ 核心特性
