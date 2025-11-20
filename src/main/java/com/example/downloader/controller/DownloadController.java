@@ -187,7 +187,7 @@ public class DownloadController {
         if (ctx != null) {
             map.put("status", ctx.getStatus()); // 实时状态
             map.put("speed", ctx.getGlobalSpeed()); // 实时速度
-            map.put("supportRange", ctx.isSupportRange());
+            map.put("supportRange", ctx.getRecord().getSupportRange() != null ? ctx.getRecord().getSupportRange() : true);
 
             long downloaded = 0;
             for (ChunkInfo c : ctx.getChunkMap().values()) {
