@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# Build
+target/
+*.class
+
+# Database
+db/
+*.db
+*.db-journal
+
+# Downloads
+Temp/
+downloads/
+
+# Documentation
+*.md
+doc/
+
+# Docker
+Dockerfile
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db

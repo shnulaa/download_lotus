@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  download-lotus:
+    build: .
+    container_name: download-lotus
+    ports:
+      - "8081:8081"
+    volumes:
+      # 数据库持久化
+      - ./data/db:/app/db
+      # 下载文件持久化
+      - ./data/downloads:/app/Temp
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+    # 资源限制（可选）
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2.0'
+    #       memory: 1G
+    #     reservations:
+    #       cpus: '1.0'
+    #       memory: 512M
