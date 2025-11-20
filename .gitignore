@@ -28,7 +28,7 @@ Thumbs.db
 *.log
 
 # Database files (optional - exclude if not needed in repo)
-downloader.db
+db/downloader.db
 
 # Temporary files
 Temp/

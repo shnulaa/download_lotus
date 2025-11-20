@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:sqlite:downloader.db
+    url: jdbc:sqlite:db/downloader.db
     driver-class-name: org.sqlite.JDBC
     username: sa
     password:
