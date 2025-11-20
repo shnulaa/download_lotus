@@ -128,8 +128,16 @@ public class DownloadController {
                 ctx.start();
             } else {
                 DownloadRecord record = repository.findById(id).orElse(null);
-                if (record != null && "PAUSED".equals(record.getStatus())) {
-                    log.info("恢复下载任务: {}", id);
+                // 允许 PAUSED 或 DOWNLOADING (服务重启导致的僵尸状态) 恢复
+                if (record != null
+                        && ("PAUSED".equals(record.getStatus()) || "DOWNLOADING".equals(record.getStatus()))) {
+                    log.info("恢复下载任务: {}, 原状态: {}", id, record.getStatus());
+                    // 如果是 DOWNLOADING 状态恢复，先修正为 PAUSED，确保 start() 能正常处理
+                    if ("DOWNLOADING".equals(record.getStatus())) {
+                        record.setStatus("PAUSED");
+                        repository.save(record);
+                    }
+
                     DownloadTaskContext newCtx = new DownloadTaskContext(record, repository, 8);
                     activeContexts.put(id, newCtx);
                     newCtx.start();

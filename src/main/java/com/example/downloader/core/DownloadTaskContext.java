@@ -88,6 +88,13 @@ public class DownloadTaskContext {
         // 异步启动防止阻塞Controller
         new Thread(() -> {
             try {
+                // 如果是从暂停恢复，需要重新创建线程池
+                if (status == DownloadStatus.PAUSED && (chunkExecutor == null || chunkExecutor.isShutdown())) {
+                    int threads = chunkMap.isEmpty() ? 8 : chunkMap.size();
+                    chunkExecutor = new ForkJoinPool(Math.min(threads + 1, 32));
+                    log.info("从暂停状态恢复，重新创建线程池，并发数: {}", threads);
+                }
+
                 // 只有IDLE状态才需要prepare
                 if (status == DownloadStatus.IDLE) {
                     prepare();
@@ -95,6 +102,11 @@ public class DownloadTaskContext {
                 } else if (status == DownloadStatus.PAUSED) {
                     // PAUSED状态恢复，不需要prepare
                     log.info("从暂停状态恢复任务 {}, chunks数量: {}", record.getId(), chunkMap.size());
+                    // 确保从数据库重新加载最新的chunk进度
+                    if (chunkMap.isEmpty()) {
+                        restoreChunks();
+                        log.info("从数据库恢复了 {} 个chunk", chunkMap.size());
+                    }
                 }
 
                 status = DownloadStatus.DOWNLOADING;
@@ -128,9 +140,34 @@ public class DownloadTaskContext {
         if (status == DownloadStatus.DOWNLOADING) {
             log.info("暂停下载任务: {}", record.getId());
             status = DownloadStatus.PAUSED;
+
+            // 停止所有worker
             activeWorkers.values().forEach(ChunkWorker::stopWork);
+
+            // 等待所有worker完全停止（最多等待3秒）
+            long waitStart = System.currentTimeMillis();
+            while (!activeWorkers.isEmpty() && (System.currentTimeMillis() - waitStart) < 3000) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    log.warn("等待worker停止时被中断", e);
+                    break;
+                }
+            }
+
             activeWorkers.clear();
+
+            // 保存当前进度到数据库
+            saveChunks();
             updateStatusInDb("PAUSED");
+
+            // 关闭线程池以完全停止下载
+            if (chunkExecutor != null && !chunkExecutor.isShutdown()) {
+                chunkExecutor.shutdown();
+                log.info("任务 {} 线程池已关闭", record.getId());
+            }
+
+            log.info("任务 {} 已暂停，进度已保存", record.getId());
         }
     }
 
