@@ -52,15 +52,27 @@ public class DownloadController {
         String path = (String) params.get("path");
         int threads = (Integer) params.get("threads");
 
+        // 获取代理设置
+        String proxyType = (String) params.get("proxyType");
+        String proxyHost = (String) params.get("proxyHost");
+        Integer proxyPort = params.get("proxyPort") != null ? (Integer) params.get("proxyPort") : null;
+
         DownloadRecord record = new DownloadRecord();
         record.setId(UUID.randomUUID().toString());
         record.setUrl(url);
         record.setSavePath(path);
         record.setCreatedTime(new Date());
         record.setStatus("IDLE");
+
+        // 设置代理
+        record.setProxyType(proxyType);
+        record.setProxyHost(proxyHost);
+        record.setProxyPort(proxyPort);
+
         repository.save(record);
 
-        log.info("创建新下载任务: {}, URL: {}, 线程数: {}", record.getId(), url, threads);
+        log.info("创建新下载任务: {}, URL: {}, 线程数: {}, 代理: {}://{}:{}",
+                record.getId(), url, threads, proxyType, proxyHost, proxyPort);
         DownloadTaskContext context = new DownloadTaskContext(record, repository, threads);
         activeContexts.put(record.getId(), context);
         context.start();

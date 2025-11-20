@@ -203,13 +203,29 @@
         </el-pagination>
 
         <!-- 新建弹窗 -->
-        <el-dialog v-model="showCreateDialog" title="新建下载" width="500px">
-            <el-form :model="form" label-width="80px">
+        <el-dialog v-model="showCreateDialog" title="新建下载" width="550px">
+            <el-form :model="form" label-width="100px">
                 <el-form-item label="URL">
                     <el-input v-model="form.url" placeholder="https://..."></el-input>
                 </el-form-item>
                 <el-form-item label="线程数">
                     <el-slider v-model="form.threads" :min="1" :max="32" show-input></el-slider>
+                </el-form-item>
+                <!-- 代理设置 -->
+                <el-divider content-position="left">代理设置 (可选)</el-divider>
+                <el-form-item label="代理类型">
+                    <el-select v-model="form.proxyType" placeholder="请选择" clearable style="width: 100%;">
+                        <el-option label="无代理" value=""></el-option>
+                        <el-option label="HTTP" value="HTTP"></el-option>
+                        <el-option label="SOCKS" value="SOCKS"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="代理服务器" v-if="form.proxyType">
+                    <el-input v-model="form.proxyHost" placeholder="例如: 127.0.0.1"></el-input>
+                </el-form-item>
+                <el-form-item label="代理端口" v-if="form.proxyType">
+                    <el-input-number v-model="form.proxyPort" :min="1" :max="65535" placeholder="1080"
+                        style="width: 100%;"></el-input-number>
                 </el-form-item>
             </el-form>
             <template #footer>
@@ -234,7 +250,13 @@
                 const msgCount = ref(0);
                 const wsClient = ref(null);
                 const reconnectTimer = ref(null);
-                const form = ref({ url: 'https://officecdn-microsoft-com.akamaized.net/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_Office_16.55.21111400_BusinessPro_Installer.pkg', threads: 8 });
+                const form = ref({
+                    url: 'https://officecdn-microsoft-com.akamaized.net/pr/C1297A47-86C4-4C1F-97FA-950631F94777/MacAutoupdate/Microsoft_Office_16.55.21111400_BusinessPro_Installer.pkg',
+                    threads: 8,
+                    proxyType: '',
+                    proxyHost: '',
+                    proxyPort: null
+                });
 
                 // 动态获取基础URL，避免硬编码端口
                 const baseUrl = window.location.origin;

@@ -8,12 +8,14 @@ import com.example.downloader.util.FileUtils;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.Header;
+import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.client.HttpClientBuilder;
 
 import java.io.*;
 import java.util.*;
@@ -76,6 +78,55 @@ public class DownloadTaskContext {
 
     public DownloadRecord getRecord() {
         return record;
+    }
+
+    /**
+     * 创建支持代理的 HttpClient
+     */
+    private CloseableHttpClient createHttpClient() {
+        HttpClientBuilder builder = HttpClients.custom();
+
+        // 配置代理
+        String proxyType = record.getProxyType();
+        String proxyHost = record.getProxyHost();
+        Integer proxyPort = record.getProxyPort();
+
+        if (proxyType != null && proxyHost != null && proxyPort != null) {
+            if ("HTTP".equalsIgnoreCase(proxyType)) {
+                // HTTP 代理
+                HttpHost proxy = new HttpHost(proxyHost, proxyPort);
+                RequestConfig config = RequestConfig.custom()
+                        .setProxy(proxy)
+                        .setConnectTimeout(10000)
+                        .setSocketTimeout(30000)
+                        .setRedirectsEnabled(true)
+                        .build();
+                builder.setDefaultRequestConfig(config);
+                log.info("使用 HTTP 代理: {}:{}", proxyHost, proxyPort);
+            } else if ("SOCKS".equalsIgnoreCase(proxyType)) {
+                // SOCKS 代理需要通过系统属性设置
+                System.setProperty("socksProxyHost", proxyHost);
+                System.setProperty("socksProxyPort", String.valueOf(proxyPort));
+                log.info("使用 SOCKS 代理: {}:{}", proxyHost, proxyPort);
+
+                RequestConfig config = RequestConfig.custom()
+                        .setConnectTimeout(10000)
+                        .setSocketTimeout(30000)
+                        .setRedirectsEnabled(true)
+                        .build();
+                builder.setDefaultRequestConfig(config);
+            }
+        } else {
+            // 无代理配置
+            RequestConfig config = RequestConfig.custom()
+                    .setConnectTimeout(10000)
+                    .setSocketTimeout(30000)
+                    .setRedirectsEnabled(true)
+                    .build();
+            builder.setDefaultRequestConfig(config);
+        }
+
+        return builder.build();
     }
 
     public void start() {
@@ -239,13 +290,7 @@ public class DownloadTaskContext {
      * 预处理：处理文件名、大小、重定向
      */
     private void prepare() throws IOException {
-        RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(10000) // 连接超时
-                .setSocketTimeout(30000) // 读取超时
-                .setRedirectsEnabled(true)// 允许重定向 (解决 GitHub 问题)
-                .build();
-
-        try (CloseableHttpClient client = HttpClients.custom().setDefaultRequestConfig(config).build()) {
+        try (CloseableHttpClient client = createHttpClient()) {
             // 1. 尝试 HEAD
             HttpHead head = new HttpHead(record.getUrl());
             try (CloseableHttpResponse response = client.execute(head)) {
@@ -375,7 +420,7 @@ public class DownloadTaskContext {
         }
 
         private void download() throws IOException {
-            CloseableHttpClient client = HttpClients.createDefault();
+            CloseableHttpClient client = createHttpClient();
             HttpGet request = new HttpGet(record.getUrl());
 
             long startPos = chunkInfo.getCurrent().get();

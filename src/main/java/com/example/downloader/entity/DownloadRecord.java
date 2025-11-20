@@ -27,6 +27,11 @@ public class DownloadRecord {
     @Column(length = 10000)
     private String chunksJson; // 存储chunk信息的JSON字符串
 
+    // 代理设置
+    private String proxyType; // "HTTP", "SOCKS", or null
+    private String proxyHost;
+    private Integer proxyPort;
+
     // 用于UI展示的简单字段
     @Transient
     private long downloadedSize;
@@ -120,5 +125,29 @@ public class DownloadRecord {
 
     public void setChunksJson(String chunksJson) {
         this.chunksJson = chunksJson;
+    }
+
+    public String getProxyType() {
+        return proxyType;
+    }
+
+    public void setProxyType(String proxyType) {
+        this.proxyType = proxyType;
+    }
+
+    public String getProxyHost() {
+        return proxyHost;
+    }
+
+    public void setProxyHost(String proxyHost) {
+        this.proxyHost = proxyHost;
+    }
+
+    public Integer getProxyPort() {
+        return proxyPort;
+    }
+
+    public void setProxyPort(Integer proxyPort) {
+        this.proxyPort = proxyPort;
     }
 }
